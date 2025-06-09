@@ -182,19 +182,18 @@
         </div>
     </div>
 
-<!-- Thay thế toàn bộ thẻ script cũ bằng thẻ script này -->
     <script>
         const API_BASE_URL = 'https://checkin-9sll.onrender.com';
         
         const loginView = document.getElementById('login-view');
         const checkinView = document.getElementById('checkin-view');
 
-        // --- HÀM XỬ LÝ ĐĂNG NHẬP (SỬA LẠI) ---
+        // --- HÀM XỬ LÝ ĐĂNG NHẬP ---
         async function login() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             const authError = document.getElementById('auth-error');
-            authError.textContent = ''; // Xóa lỗi cũ
+            authError.textContent = ''; 
 
             try {
                 const response = await fetch(`${API_BASE_URL}/login`, {
@@ -207,7 +206,6 @@
                     throw new Error(data.detail || 'Đăng nhập thất bại.');
                 }
 
-                // Lưu session token và thông tin người dùng
                 localStorage.setItem('sessionToken', data.session_token);
                 localStorage.setItem('userInfo', JSON.stringify(data.user_info));
                 
@@ -221,16 +219,15 @@
         async function logout() {
             const token = localStorage.getItem('sessionToken');
             if(token) {
-                // Yêu cầu server hủy session
-                await fetchWithAuth(`${API_BASE_URL}/logout`, { method: 'POST' });
+                // Không cần chờ server phản hồi, cứ dọn dẹp ở client là được
+                fetchWithAuth(`${API_BASE_URL}/logout`, { method: 'POST' });
             }
-            // Dọn dẹp phía client
             localStorage.removeItem('sessionToken');
             localStorage.removeItem('userInfo');
             showLoginView();
         }
 
-        // --- HÀM GỌI API ĐƯỢC BẢO VỆ (SỬA LẠI) ---
+        // --- HÀM GỌI API ĐƯỢC BẢO VỆ ---
         async function fetchWithAuth(url, options = {}) {
             const token = localStorage.getItem('sessionToken');
             if (!token) {
@@ -252,15 +249,18 @@
             return response;
         }
         
-        // --- CHUYỂN ĐỔI GIAO DIỆN (SỬA LẠI) ---
+        // --- CHUYỂN ĐỔI GIAO DIỆN ---
         function showCheckinView() {
             const userInfo = JSON.parse(localStorage.getItem('userInfo'));
             if(userInfo) {
                 document.getElementById('user-full-name').textContent = userInfo.full_name;
                 loginView.style.display = 'none';
                 checkinView.style.display = 'flex';
+                 // Xóa kết quả cũ khi hiển thị lại view
+                document.getElementById('result').style.display = 'none';
+                document.getElementById('order-code').value = '';
+
             } else {
-                // Nếu không có thông tin user, quay về trang login
                 showLoginView();
             }
         }
@@ -270,8 +270,7 @@
             checkinView.style.display = 'none';
         }
         
-        // --- LOGIC CHECK-IN (Giữ nguyên, nhưng dùng fetchWithAuth) ---
-        // (Toàn bộ các hàm check-in cũ nằm ở đây, chỉ sửa lại cách gọi fetch)
+        // --- LOGIC CHECK-IN ---
         const orderCodeInput = document.getElementById('order-code');
         const resultDiv = document.getElementById('result');
         const scanQrBtn = document.getElementById('scan-qr-btn');
@@ -287,7 +286,9 @@
         closeModalBtn.addEventListener('click', stopAndHideModal);
         window.addEventListener('click', (event) => { if (event.target == qrModal) stopAndHideModal(); });
         orderCodeInput.addEventListener('keyup', (event) => { if (event.key === 'Enter') searchTicket(); });
+        
         function getQrScannerInstance() { if (!html5QrCode) html5QrCode = new Html5Qrcode("qr-reader"); return html5QrCode; }
+        
         function scanQrCodeFromFile(file) {
             const scanner = getQrScannerInstance();
             displayMessage('Đang quét ảnh...', 'info');
@@ -299,6 +300,7 @@
             });
             qrFileInput.value = '';
         }
+        
         function startQrScanner() {
             const scanner = getQrScannerInstance();
             const successCb = (decodedText) => { orderCodeInput.value = decodedText; stopAndHideModal(); searchTicket(); };
@@ -307,6 +309,7 @@
                 scanner.start({ facingMode: "user" }, config, successCb).catch(err => alert("Không thể khởi động camera."));
             });
         }
+        
         function stopAndHideModal() {
             const scanner = getQrScannerInstance();
             if (scanner && scanner.isScanning) {
@@ -366,10 +369,18 @@
                 });
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.detail || 'Không thể check-in.');
+                
+                // Cải tiến: Tự động tìm lại vé để cập nhật giao diện
                 displayMessage(`✅ ${data.message}`, 'success');
+                setTimeout(() => {
+                    searchTicket();
+                }, 1000); // Chờ 1 giây rồi cập nhật
+
             } catch (error) {
                 displayMessage(`Lỗi: ${error.message}`, 'error');
-                searchTicket();
+                // Nếu lỗi, bật lại nút checkin
+                checkinBtn.disabled = false;
+                checkinBtn.textContent = 'Xác nhận Check-in';
             }
         }
         
