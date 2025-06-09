@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Check-in Vé</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+<style>
+        :root {
+            --primary-color: #007bff;
+            --primary-hover: #0056b3;
+            --success-color: #28a745;
+            --success-hover: #218838;
+            --warning-bg: #fff8e1;
+            --warning-border: #ffc107;
+            --error-bg: #fce8e6;
+            --error-border: #dc3545;
+        }
+
+        /* --- PHONG CÁCH CHUNG & ƯU TIÊN CHO DI ĐỘNG (MOBILE-FIRST) --- */
+        
+        /* Đảm bảo nội dung không bị dính sát vào viền màn hình */
+        html {
+            box-sizing: border-box;
+        }
+        *, *:before, *:after {
+            box-sizing: inherit;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f7f9; 
+            color: #333;
+            margin: 0;
+            /* Trên di động, không cần căn giữa theo chiều dọc */
+        }
+        .container {
+            width: 100%;
+            height: 100vh; /* Chiếm toàn bộ chiều cao màn hình di động */
+            background: #fff;
+            padding: 20px; /* Giảm padding trên di động */
+            display: flex;
+            flex-direction: column;
+        }
+        h1 {
+            text-align: center;
+            color: var(--primary-hover);
+            margin-bottom: 20px;
+            font-size: 24px; /* Giảm cỡ chữ tiêu đề trên di động */
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px; /* Tăng độ bo tròn cho hiện đại hơn */
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        .input-with-button {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        #order-code {
+            flex-grow: 1;
+            margin-right: 5px;
+            font-size: 22px;
+            font-weight: bold;
+            color: #0056b3;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            background-color: var(--primary-color);
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .btn:hover {
+            background-color: var(--primary-hover);
+        }
+        .qr-btn {
+            flex-shrink: 0;
+            width: 48px;  /* Tăng nhẹ kích thước để dễ bấm hơn trên di động */
+            height: 48px;
+            padding: 0;
+            font-size: 22px;
+            line-height: 48px;
+            text-align: center;
+            background-color: #6c757d;
+            border-radius: 8px;
+        }
+        .qr-btn:hover {
+            background-color: #5a6268;
+        }
+
+        #result {
+            margin-top: 25px;
+            padding: 20px;
+            border-radius: 8px;
+            line-height: 1.6;
+            display: none;
+            flex-grow: 1; /* Cho phép khu vực kết quả giãn ra trên di động */
+            overflow-y: auto; /* Thêm thanh cuộn nếu kết quả quá dài */
+        }
+        .result-success { background-color: #e9f7ef; border-left: 5px solid var(--success-color); }
+        .result-error { background-color: #fce8e6; border-left: 5px solid var(--error-border); }
+        .result-info { background-color: #e7f3fe; border-left: 5px solid var(--primary-color); }
+        .result-warning { background-color: var(--warning-bg); border-left: 5px solid var(--warning-border); }
+        .ticket-info p { margin: 5px 0; }
+        .ticket-info strong { color: var(--primary-hover); }
+        #checkin-btn {
+            margin-top: 15px;
+            background-color: var(--success-color);
+        }
+        #checkin-btn:hover {
+            background-color: var(--success-hover);
+        }
+        #checkin-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        /* Modal quét QR đã tương thích tốt với di động, giữ nguyên */
+        .modal {
+            display: none; position: fixed; z-index: 1000;
+            left: 0; top: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            align-items: center; justify-content: center;
+        }
+        .modal-content {
+            background-color: #fefefe; padding: 20px; border-radius: 8px;
+            width: 90%; max-width: 450px;
+            text-align: center; position: relative;
+        }
+        #qr-reader {
+            border: 1px solid #ccc; border-radius: 8px; overflow: hidden;
+        }
+        .close-btn {
+            position: absolute; top: 10px; right: 20px;
+            color: #aaa; font-size: 32px; font-weight: bold; cursor: pointer;
+        }
+        .close-btn:hover { color: #000; }
+
+        /* --- PHONG CÁCH CHO MÀN HÌNH LỚN HƠN (DESKTOP) --- */
+
+        /* Áp dụng các style này khi chiều rộng màn hình từ 600px trở lên */
+        @media (min-width: 600px) {
+            body {
+                /* Căn giữa container trên màn hình lớn */
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                padding: 20px;
+            }
+
+            .container {
+                /* Trả lại giao diện dạng thẻ card trên desktop */
+                max-width: 500px;
+                height: auto; /* Chiều cao tự động theo nội dung */
+                border-radius: 12px;
+                box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+                padding: 30px;
+            }
+
+            h1 {
+                font-size: 28px; /* Trả lại cỡ chữ lớn hơn cho desktop */
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🔍 Hệ Thống Check-in</h1>
+        
+        <div class="form-group">
+            <label for="checker-name">Tên người duyệt check-in</label>
+            <input type="text" id="checker-name" placeholder="Nhập tên của bạn">
+        </div>
+
+        <div class="form-group">
+            <label for="order-code">Mã vé</label>
+            <div class="input-with-button">
+                <input type="text" id="order-code" placeholder="Nhập mã hoặc quét">
+                <input type="file" id="qr-file-input" accept="image/*" style="display: none;">
+                <button id="select-file-btn" class="btn qr-btn" title="Quét mã QR từ ảnh">📁</button>
+                <button id="scan-qr-btn" class="btn qr-btn" title="Quét mã QR bằng camera">📷</button>
+            </div>
+        </div>
+
+        <button class="btn" onclick="searchTicket()">Tra cứu vé</button>
+
+        <div id="result"></div>
+    </div>
+
+    <div id="qr-scanner-modal" class="modal">
+        <div class="modal-content">
+            <span id="close-modal-btn" class="close-btn">&times;</span>
+            <h2 style="margin-top: 0;">Đưa mã QR vào khung quét</h2>
+            <div id="qr-reader"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:8000';
+        
+        // Lấy các element từ DOM
+        const checkerNameInput = document.getElementById('checker-name');
+        const orderCodeInput = document.getElementById('order-code');
+        const resultDiv = document.getElementById('result');
+        
+        // Elements cho chức năng QR
+        const scanQrBtn = document.getElementById('scan-qr-btn');
+        const selectFileBtn = document.getElementById('select-file-btn');
+        const qrFileInput = document.getElementById('qr-file-input');
+        const qrModal = document.getElementById('qr-scanner-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        
+        let html5QrCode; // Biến để lưu trữ đối tượng scanner
+
+        // --- CÁC HÀM XỬ LÝ SỰ KIỆN ---
+
+        // 1. Mở Modal và bắt đầu quét CAMERA
+        scanQrBtn.addEventListener('click', () => {
+            qrModal.style.display = 'flex';
+            startQrScanner();
+        });
+
+        // 2. Kích hoạt chọn FILE khi nhấn nút "Chọn ảnh"
+        selectFileBtn.addEventListener('click', () => {
+            qrFileInput.click(); // Giả lập hành động click vào input file
+        });
+        
+        // 3. Xử lý khi người dùng đã chọn một FILE
+        qrFileInput.addEventListener('change', e => {
+            if (e.target.files.length == 0) {
+                return;
+            }
+            const imageFile = e.target.files[0];
+            scanQrCodeFromFile(imageFile);
+        });
+
+        // Đóng Modal và dừng quét
+        closeModalBtn.addEventListener('click', stopAndHideModal);
+        window.addEventListener('click', (event) => {
+            if (event.target == qrModal) stopAndHideModal();
+        });
+        
+        orderCodeInput.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') searchTicket();
+        });
+
+        // --- CÁC HÀM LOGIC ---
+
+        // Hàm khởi tạo và trả về đối tượng scanner (để tránh lặp code)
+        function getQrScannerInstance() {
+            if (!html5QrCode) {
+                 html5QrCode = new Html5Qrcode("qr-reader");
+            }
+            return html5QrCode;
+        }
+
+        // Hàm quét QR từ FILE ảnh
+        function scanQrCodeFromFile(file) {
+            const scanner = getQrScannerInstance();
+            displayMessage('Đang quét ảnh...', 'info');
+            scanner.scanFile(file, true) // true = show-spinner
+            .then(decodedText => {
+                orderCodeInput.value = decodedText;
+                searchTicket(); // Tự động tra cứu
+            })
+            .catch(err => {
+                displayMessage(`Lỗi: Không tìm thấy mã QR trong ảnh. (${err})`, 'error');
+            });
+            // Reset input file để có thể chọn lại cùng một file
+            qrFileInput.value = '';
+        }
+
+        // Hàm quét QR bằng CAMERA
+        function startQrScanner() {
+            const scanner = getQrScannerInstance();
+            const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+                orderCodeInput.value = decodedText;
+                stopAndHideModal();
+                searchTicket();
+            };
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            scanner.start({ facingMode: "environment" }, config, qrCodeSuccessCallback)
+                .catch(err => {
+                    console.log("Không thể khởi động camera sau, thử camera trước.", err);
+                    scanner.start({ facingMode: "user" }, config, qrCodeSuccessCallback)
+                        .catch(err => alert("Không thể khởi động camera. Vui lòng cấp quyền truy cập."));
+                });
+        }
+
+        function stopAndHideModal() {
+            const scanner = getQrScannerInstance();
+            if (scanner && scanner.isScanning) {
+                scanner.stop().catch(err => console.error("Lỗi khi dừng QR scanner.", err));
+            }
+            qrModal.style.display = 'none';
+        }
+
+        async function searchTicket() {
+            const orderCode = orderCodeInput.value.trim();
+            const checkerName = checkerNameInput.value.trim();
+
+            if (!checkerName) {
+                displayMessage('Vui lòng nhập tên người duyệt check-in.', 'error');
+                return;
+            }
+            if (!orderCode) {
+                displayMessage('Vui lòng nhập mã vé.', 'error');
+                return;
+            }
+            displayMessage('Đang tìm kiếm...', 'info');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/ticket/${orderCode}`);
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Có lỗi xảy ra.');
+                displayTicketInfo(data, checkerName);
+            } catch (error) {
+                displayMessage(`Lỗi: ${error.message}`, 'error');
+            }
+        }
+
+        function displayTicketInfo(ticket, checkerName) {
+            let content = `
+                <div class="ticket-info">
+                    <h4>Thông Tin Vé</h4>
+                    <p><strong>Mã vé:</strong> ${ticket.order_code}</p>
+                    <p><strong>Tên khách hàng:</strong> ${ticket.customer_name}</p>
+                    <p><strong>Email:</strong> ${ticket.email}</p>
+                    <p><strong>Số điện thoại:</strong> ${ticket.phone}</p>
+                </div> <hr>
+            `;
+            if (ticket.is_checked_in) {
+                resultDiv.className = 'result-warning';
+                content += `
+                    <h4>❌ TRẠNG THÁI: Đã Check-in</h4>
+                    <p><strong>Người duyệt:</strong> ${ticket.checked_in_by}</p>
+                    <p><strong>Thời gian:</strong> ${ticket.checked_in_at}</p>
+                `;
+            } else {
+                resultDiv.className = 'result-info';
+                content += `
+                    <h4>✅ TRẠNG THÁI: Vé hợp lệ, chưa check-in</h4>
+                    <button id="checkin-btn" class="btn" onclick="confirmCheckIn('${ticket.order_code}', '${checkerName}')">Xác nhận Check-in</button>
+                `;
+            }
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = content;
+        }
+
+        async function confirmCheckIn(orderCode, checkerName) {
+            const checkinBtn = document.getElementById('checkin-btn');
+            checkinBtn.disabled = true;
+            checkinBtn.textContent = 'Đang xử lý...';
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/checkin`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        order_code: orderCode,
+                        checker_name: checkerName
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Không thể check-in.');
+                displayMessage(`✅ ${data.message}`, 'success');
+            } catch (error) {
+                displayMessage(`Lỗi: ${error.message}`, 'error');
+                searchTicket();
+            }
+        }
+        
+        function displayMessage(message, type) {
+            resultDiv.style.display = 'block';
+            resultDiv.className = `result-${type}`;
+            resultDiv.innerHTML = `<p>${message}</p>`;
+        }
+    </script>
+</body>
+</html>
